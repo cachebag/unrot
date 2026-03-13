@@ -1,6 +1,6 @@
-<h2 align="center">tethers</h2>
+<h2 align="center">unrot</h2>
 
-A symlink is broken when its target no longer exists. `tethers` finds these, reports the dead target path, and attempts to 
+A symlink is broken when its target no longer exists. `unrot` finds these, reports the dead target path, and attempts to 
 locate where it moved by fuzzy matching the target filename against the real filesystem. You decide whether to re-link, skip, or remove.
 
 # License
