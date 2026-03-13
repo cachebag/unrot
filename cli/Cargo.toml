@@ -1,0 +1,11 @@
+[package]
+name = "unrot_cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "unrot"
+
+[dependencies]
+clap.workspace = true
+unrot_core = { path = "../core" }

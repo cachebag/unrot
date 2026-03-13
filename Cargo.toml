@@ -1,6 +1,16 @@
-[package]
-name = "tethers"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["core", "cli"]
+resolver = "3"
 
-[dependencies]
+[workspace.package]
+edition = "2024"
+rust-version = "1.93"
+license = "MIT, APACHE-2.0"
+repository = "https://github.com/cachebag/unrot"
+
+[profile.bench]
+debug = true
+strip = "none"
+
+[workspace.dependencies]
+clap = { version = "4.6.0", features = ["derive"] }
