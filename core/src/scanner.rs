@@ -6,10 +6,21 @@ use walkdir::WalkDir;
 /// Recursively scans the given path for broken symlinks and returns a list of them.
 /// This function does not follow symlinks, so it will only report links that are directly broken,
 /// not those that are broken due to a parent directory being a broken link.
-pub fn find_broken_symlinks(path: &Path) -> Vec<BrokenSymlink> {
+pub fn find_broken_symlinks(path: &Path, ignore: &[String]) -> Vec<BrokenSymlink> {
     let mut broken_symlinks = Vec::new();
 
-    for entry in WalkDir::new(path).follow_links(false) {
+    for entry in WalkDir::new(path)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.file_type().is_dir() {
+                let name = e.file_name().to_str().unwrap_or("");
+                !ignore.iter().any(|pat| name == pat.as_str())
+            } else {
+                true
+            }
+        })
+    {
         match entry {
             Ok(dir_entry) => {
                 let file_type = dir_entry.file_type();
@@ -88,7 +99,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("file.txt"), "data").unwrap();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert!(result.is_empty());
     }
 
@@ -96,7 +107,7 @@ mod tests {
     fn valid_symlink_is_not_reported() {
         let dir = setup_valid_symlink();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert!(result.is_empty(), "valid symlinks should not be reported");
     }
 
@@ -104,7 +115,7 @@ mod tests {
     fn broken_symlink_is_detected() {
         let dir = setup_broken_symlink();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert_eq!(result.len(), 1);
         assert!(result[0].link.ends_with("broken_link"));
         assert_eq!(
@@ -117,17 +128,15 @@ mod tests {
     fn mixed_bag_symlinks() {
         let dir = TempDir::new().unwrap();
 
-        // Valid symlinks
         let real = dir.path().join("real.txt");
         fs::write(&real, "content").unwrap();
         let good = dir.path().join("good_link");
         symlink(&real, &good).unwrap();
 
-        // Broken symlinks
         let bad = dir.path().join("bad_link");
         symlink("/no/such/file", &bad).unwrap();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert_eq!(result.len(), 1);
         assert!(result[0].link.ends_with("bad_link"));
     }
@@ -138,7 +147,7 @@ mod tests {
         let link = dir.path().join("relative_broken");
         symlink("nonexistent_sibling.txt", &link).unwrap();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert_eq!(result.len(), 1);
         assert!(result[0].link.ends_with("relative_broken"));
         assert_eq!(result[0].target, PathBuf::from("nonexistent_sibling.txt"));
@@ -152,7 +161,7 @@ mod tests {
         let link = dir.path().join("relative_good");
         symlink("sibling.txt", &link).unwrap();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert!(
             result.is_empty(),
             "valid relative symlinks should not be reported"
@@ -167,7 +176,7 @@ mod tests {
         let link = sub.join("deep_broken");
         symlink("/gone/forever", &link).unwrap();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert_eq!(result.len(), 1);
         assert!(result[0].link.ends_with("deep_broken"));
     }
@@ -176,7 +185,7 @@ mod tests {
     fn empty_directory_returns_empty() {
         let dir = TempDir::new().unwrap();
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert!(result.is_empty());
     }
 
@@ -189,7 +198,7 @@ mod tests {
             symlink(format!("/missing/target_{i}"), &link).unwrap();
         }
 
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert_eq!(result.len(), 5);
     }
 
@@ -201,14 +210,29 @@ mod tests {
         let link = dir.path().join("will_break");
         symlink(&target, &link).unwrap();
 
-        // Initially valid
-        assert!(find_broken_symlinks(dir.path()).is_empty());
+        assert!(find_broken_symlinks(dir.path(), &[]).is_empty());
 
-        // Remove the target — now it's broken
         fs::remove_file(&target).unwrap();
-        let result = find_broken_symlinks(dir.path());
+        let result = find_broken_symlinks(dir.path(), &[]);
         assert_eq!(result.len(), 1);
         assert!(result[0].link.ends_with("will_break"));
+    }
+
+    #[test]
+    fn ignore_patterns_skip_directories() {
+        let dir = TempDir::new().unwrap();
+        let git = dir.path().join(".git");
+        fs::create_dir(&git).unwrap();
+        let link = git.join("broken");
+        symlink("/nonexistent", &link).unwrap();
+
+        let visible_link = dir.path().join("also_broken");
+        symlink("/also_nonexistent", &visible_link).unwrap();
+
+        let ignore = vec![".git".to_string()];
+        let result = find_broken_symlinks(dir.path(), &ignore);
+        assert_eq!(result.len(), 1);
+        assert!(result[0].link.ends_with("also_broken"));
     }
 
     #[test]
