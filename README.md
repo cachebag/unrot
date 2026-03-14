@@ -11,7 +11,7 @@
 A symlink is broken when its target no longer exists. `unrot` finds these, reports the dead target path, and attempts to 
 locate where it moved by fuzzy matching the target filename against the real filesystem. You decide whether to re-link, skip, or remove.
 
-# License
+## License
 
 Licensed under either of
 
