@@ -8,5 +8,5 @@ name = "unrot"
 path = "src/main.rs"
 
 [dependencies]
-clap.workspace = true
+clap = { version = "4.6.0", features = ["derive"] }
 unrot_core = { path = "../core" }

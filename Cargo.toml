@@ -11,6 +11,3 @@ repository = "https://github.com/cachebag/unrot"
 [profile.bench]
 debug = true
 strip = "none"
-
-[workspace.dependencies]
-clap = { version = "4.6.0", features = ["derive"] }
