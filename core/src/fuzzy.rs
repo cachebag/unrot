@@ -3,6 +3,11 @@ use walkdir::WalkDir;
 
 use crate::scanner::BrokenSymlink;
 
+// Hand-rolled Levenshtein distance algorithm
+// https://en.wikipedia.org/wiki/Levenshtein_distance
+//
+// We could easily use a library for this, but it's trivial
+// enough in our case to where it's not worth the dependency here.
 pub fn levenshtein(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
@@ -201,8 +206,7 @@ mod tests {
 
     #[test]
     fn exact_match_found() {
-        use std::fs;
-        use std::os::unix::fs::symlink;
+        use std::{fs, os::unix::fs::symlink};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -301,8 +305,7 @@ mod tests {
 
     #[test]
     fn skips_the_broken_link_itself() {
-        use std::fs;
-        use std::os::unix::fs::symlink;
+        use std::{fs, os::unix::fs::symlink};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();

@@ -1,6 +1,7 @@
-use std::fmt;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fmt, fs,
+    path::{Path, PathBuf},
+};
 use walkdir::WalkDir;
 
 /// Recursively scans the given path for broken symlinks and returns a list of them.
