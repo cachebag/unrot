@@ -5,3 +5,6 @@ edition = "2024"
 
 [dependencies]
 walkdir = "2.5.0"
+
+[dev-dependencies]
+tempfile = "3"
