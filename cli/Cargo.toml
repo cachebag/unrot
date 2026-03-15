@@ -1,6 +1,6 @@
 [package]
 name = "unrot"
-version = "0.1.0"
+version = "0.1.1"
 description = "Find and interactively repair broken symlinks with fuzzy matching"
 edition.workspace = true
 rust-version.workspace = true
@@ -18,4 +18,4 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
-unrot_core = { version = "0.1.0", path = "../core" }
+unrot_core = { version = "0.1.1", path = "../core" }
