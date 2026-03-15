@@ -8,7 +8,7 @@
 
 </div>
 
-A symlink is broken when its target no longer exists. `unrot` finds these, reports the dead target path, and attempts to 
+A symlink is _[broken](https://en.wikipedia.org/wiki/Symbolic_link#:~:text=Its%20target%20path%20would%20point%20to%20nothing%20and%20might%20be%20described%20as%20broken%2C%20orphaned%2C%20dead%2C%20or%20dangling)_ when its target no longer exists. `unrot` finds these, reports the dead target path, and attempts to 
 locate where it moved by fuzzy matching the target filename against the real filesystem. You decide whether to re-link, skip, or remove.
 
 ## Install
