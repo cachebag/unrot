@@ -20,24 +20,36 @@ cargo install unrot
 ## Usage
 
 ```bash
-# Scans current directory for broken symlinks and interactively allows you to fix them
+# Scans current directory for broken symlinks and interactively allows you to fix them (default)
 unrot
 
 # Scans a specific directory
-unrot -p /path/to/project
+unrot /path/to/project
 
-# Just list broken symlinks without the interactive resolver
-unrot -p /path/to/project -l
+# Scan only — report broken links (link -> target)
+unrot scan /path/to/project
+
+# List broken symlink paths only, no candidates
+unrot list /path/to/project
 
 # Search for candidates in a wider directory tree
-unrot -p ~/project -s ~/
+unrot ~/project -s ~/
 
 # Preview what would happen without modifying anything
-unrot -p /path/to/project -d
+unrot /path/to/project --dry-run
 
 # Add extra directories to skip (on top of .git, node_modules, target, etc.)
-unrot -p /path/to/project -I vendor -I dist
+unrot /path/to/project -I vendor -I dist
 ```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| *(default)* | Interactive fix mode — scan, show candidates, let you re-link/skip/remove |
+| `scan [PATH]` | Scan only, report broken links (link -> target) |
+| `fix [PATH]` | Interactive fix mode (explicit) |
+| `list [PATH]` | List broken link paths only, no candidates, exit |
 
 ### Interactive commands
 
@@ -50,14 +62,14 @@ When prompted for each broken symlink:
 | `s` | Skip this symlink |
 | `r` | Remove this symlink (asks for confirmation) |
 
-### Flags
+### Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--path <PATH>` | `-p` | Directory to scan for broken symlinks (default: `.`) |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `[PATH]` | — | Directory to scan (default: `.`) |
 | `--search-root <PATH>` | `-s` | Search for candidates here instead of the scan path |
-| `--list` | `-l` | List broken symlinks and exit |
-| `--dry-run` | `-d` | Preview changes without modifying the filesystem |
+| `--dry-run` | — | Preview changes without modifying the filesystem |
+| `--batch-confirm` | — | Collect all decisions, show summary, then confirm before applying |
 | `--ignore <NAME>` | `-I` | Additional directory names to skip (repeatable) |
 
 ## License
