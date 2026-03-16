@@ -12,6 +12,7 @@ fn main() {
         search_root,
         ignore,
         dry_run,
+        batch_confirm,
     } = Args::parse();
 
     let path = if path.as_os_str() == "." {
@@ -49,7 +50,7 @@ fn main() {
     }
 
     let mut io = TerminalIO;
-    match run(&cases, &mut io, dry_run) {
+    match run(&cases, &mut io, dry_run, batch_confirm) {
         Ok(summary) => {
             if summary.total() > 0 {
                 println!("{summary}");
@@ -82,4 +83,8 @@ struct Args {
     /// Preview changes without modifying the filesystem
     #[arg(short, long)]
     dry_run: bool,
+
+    /// Collect all decisions, show summary, then confirm before applying
+    #[arg(short, long)]
+    batch_confirm: bool,
 }
