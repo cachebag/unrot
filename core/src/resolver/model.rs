@@ -53,7 +53,7 @@ pub enum Action {
     Skip,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Summary {
     pub relinked: usize,
     pub removed: usize,
@@ -115,6 +115,8 @@ mod tests {
             vec![ScoredCandidate {
                 path: "/candidate".into(),
                 score: 1.0,
+                shared_dirs: 0,
+                basename_count: 1,
             }],
         );
         assert!(case.has_candidates());

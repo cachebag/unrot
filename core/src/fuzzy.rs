@@ -46,7 +46,7 @@ fn dir_components(path: &Path) -> Vec<String> {
         .collect()
 }
 
-fn score_candidate(broken: &BrokenSymlink, candidate: &Path, search_root: &Path) -> f64 {
+fn score_candidate(broken: &BrokenSymlink, candidate: &Path, search_root: &Path) -> (f64, usize) {
     let target_name = broken
         .target
         .file_name()
@@ -77,7 +77,8 @@ fn score_candidate(broken: &BrokenSymlink, candidate: &Path, search_root: &Path)
         .unwrap_or(0);
     let depth_penalty = depth as f64 * 0.1;
 
-    filename_score * 10.0 + path_score * 3.0 + depth_penalty
+    let score = filename_score * 10.0 + path_score * 3.0 + depth_penalty;
+    (score, shared)
 }
 
 pub fn find_candidates(
@@ -123,10 +124,24 @@ pub fn find_candidates(
         })
         .map(|e| {
             let path = e.into_path();
-            let score = score_candidate(broken, &path, search_root);
-            ScoredCandidate { path, score }
+            let (score, shared_dirs) = score_candidate(broken, &path, search_root);
+            ScoredCandidate {
+                path,
+                score,
+                shared_dirs,
+                basename_count: 0,
+            }
         })
         .collect();
+
+    let target_name = broken.target.file_name();
+    let basename_count = candidates
+        .iter()
+        .filter(|c| c.path.file_name() == target_name)
+        .count();
+    for c in &mut candidates {
+        c.basename_count = basename_count;
+    }
 
     candidates.sort_by(|a, b| {
         a.score
@@ -140,6 +155,8 @@ pub fn find_candidates(
 pub struct ScoredCandidate {
     pub path: PathBuf,
     pub score: f64,
+    pub shared_dirs: usize,
+    pub basename_count: usize,
 }
 
 pub const DEFAULT_IGNORE: &[&str] = &[

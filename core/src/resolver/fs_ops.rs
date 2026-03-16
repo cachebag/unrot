@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::model::Action;
+use super::{model::Action, safety::would_create_loop};
 
 pub fn execute(link: &Path, action: &Action, dry_run: bool) -> Result<(), FsError> {
     match action {
@@ -18,6 +18,12 @@ pub fn execute(link: &Path, action: &Action, dry_run: bool) -> Result<(), FsErro
             })
         }
         Action::Relink(target) => {
+            if would_create_loop(link, target) {
+                return Err(FsError::WouldCreateLoop {
+                    link: link.to_path_buf(),
+                    target: target.clone(),
+                });
+            }
             if dry_run {
                 return Ok(());
             }
@@ -52,6 +58,14 @@ impl fmt::Display for FsError {
                     target.display()
                 )
             }
+            Self::WouldCreateLoop { link, target } => {
+                write!(
+                    f,
+                    "refused: relinking {} -> {} would create a symlink loop",
+                    link.display(),
+                    target.display()
+                )
+            }
         }
     }
 }
@@ -66,6 +80,10 @@ pub enum FsError {
         link: PathBuf,
         target: PathBuf,
         source: std::io::Error,
+    },
+    WouldCreateLoop {
+        link: PathBuf,
+        target: PathBuf,
     },
 }
 
@@ -155,6 +173,20 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("/some/link"));
         assert!(msg.contains("not found"));
+    }
+
+    #[test]
+    fn would_create_loop_refused() {
+        let temp = TempDir::new().unwrap();
+        let a = temp.path().join("a");
+        let b = temp.path().join("b");
+        symlink(&b, &a).unwrap();
+        symlink(&a, &b).unwrap();
+
+        let result = execute(&a, &Action::Relink(b), false);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("loop"));
     }
 
     #[test]

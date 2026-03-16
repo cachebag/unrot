@@ -1,6 +1,9 @@
 use std::fmt;
 
-use super::model::RepairCase;
+use super::{
+    model::RepairCase,
+    safety::{format_warnings, relink_warnings},
+};
 
 pub fn present(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Result {
     format_header(w, case)?;
@@ -18,18 +21,40 @@ pub fn format_header(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Result 
 }
 
 pub fn format_candidates(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Result {
-    let RepairCase { ref candidates, .. } = *case;
+    let RepairCase {
+        ref candidates,
+        ref original_target,
+        ..
+    } = *case;
     if candidates.is_empty() {
         writeln!(w, "  no candidates found")
     } else {
+        let target_basename = original_target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
         for (i, candidate) in candidates.iter().enumerate() {
+            let basename_note = if candidate.basename_count <= 1 {
+                "only match".to_string()
+            } else {
+                format!(
+                    "{} files named {target_basename} found",
+                    candidate.basename_count
+                )
+            };
             writeln!(
                 w,
-                "  [{}] {} (score: {:.2})",
+                "  [{}] {} (score: {:.2}, {} shared dirs, {})",
                 i + 1,
                 candidate.path.display(),
-                candidate.score
+                candidate.score,
+                candidate.shared_dirs,
+                basename_note
             )?;
+            let warnings = relink_warnings(&case.link, original_target, &candidate.path);
+            if !warnings.is_empty() {
+                write!(w, "{}", format_warnings(&warnings))?;
+            }
         }
         Ok(())
     }
@@ -62,10 +87,14 @@ mod tests {
                 ScoredCandidate {
                     path: "/home/user/target.txt".into(),
                     score: 3.20,
+                    shared_dirs: 0,
+                    basename_count: 2,
                 },
                 ScoredCandidate {
                     path: "/archive/target.txt".into(),
                     score: 4.50,
+                    shared_dirs: 0,
+                    basename_count: 2,
                 },
             ],
         )
@@ -82,6 +111,8 @@ mod tests {
             vec![ScoredCandidate {
                 path: "/home/user/target.txt".into(),
                 score: 3.20,
+                shared_dirs: 0,
+                basename_count: 1,
             }],
         )
     }
@@ -97,8 +128,10 @@ mod tests {
     fn candidates_listed_with_scores() {
         let mut out = String::new();
         format_candidates(&mut out, &case_with_candidates()).unwrap();
-        assert!(out.contains("[1] /home/user/target.txt (score: 3.20)"));
-        assert!(out.contains("[2] /archive/target.txt (score: 4.50)"));
+        assert!(out.contains("[1] /home/user/target.txt (score: 3.20"));
+        assert!(out.contains("[2] /archive/target.txt (score: 4.50"));
+        assert!(out.contains("shared dirs"));
+        assert!(out.contains("files named target.txt found"));
     }
 
     #[test]
