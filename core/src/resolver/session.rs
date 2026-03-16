@@ -10,9 +10,27 @@ use super::{
     model::{Action, RepairCase, Summary},
 };
 
-pub fn run(cases: &[RepairCase], io: &mut impl ResolverIO, dry_run: bool) -> io::Result<Summary> {
+pub fn run(
+    cases: &[RepairCase],
+    io: &mut impl ResolverIO,
+    dry_run: bool,
+    batch_confirm: bool,
+) -> io::Result<Summary> {
     let mut summary = Summary::default();
 
+    if batch_confirm {
+        run_batch(cases, io, dry_run)
+    } else {
+        run_immediate(cases, io, dry_run, &mut summary)
+    }
+}
+
+fn run_immediate(
+    cases: &[RepairCase],
+    io: &mut impl ResolverIO,
+    dry_run: bool,
+    summary: &mut Summary,
+) -> io::Result<Summary> {
     for case in cases {
         let mut buf = String::new();
         present(&mut buf, case).unwrap();
@@ -32,6 +50,60 @@ pub fn run(cases: &[RepairCase], io: &mut impl ResolverIO, dry_run: bool) -> io:
         }
 
         io.write_str("\n")?;
+    }
+
+    Ok(std::mem::take(summary))
+}
+
+fn run_batch(cases: &[RepairCase], io: &mut impl ResolverIO, dry_run: bool) -> io::Result<Summary> {
+    let mut planned: Vec<(&RepairCase, Action)> = Vec::new();
+
+    for case in cases {
+        let mut buf = String::new();
+        present(&mut buf, case).unwrap();
+        io.write_str(&buf)?;
+
+        let action = prompt_until_resolved(case, io)?;
+        planned.push((case, action));
+        io.write_str("\n")?;
+    }
+
+    let mut would_relink = 0;
+    let mut would_skip = 0;
+    let mut would_remove = 0;
+    for (_, a) in &planned {
+        match a {
+            Action::Relink(_) => would_relink += 1,
+            Action::Skip => would_skip += 1,
+            Action::Remove => would_remove += 1,
+        }
+    }
+
+    io.write_str(&format!(
+        "Will {} {}, skip {}, remove {}. Proceed? [y/N] ",
+        if dry_run { "simulate" } else { "relink" },
+        would_relink,
+        would_skip,
+        would_remove
+    ))?;
+    let confirm = io.read_line()?;
+    if !matches!(confirm.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+        io.write_str("Aborted. No changes made.\n")?;
+        return Ok(Summary::default());
+    }
+
+    let mut summary = Summary::default();
+    for (case, action) in planned {
+        match execute(&case.link, &action, dry_run) {
+            Ok(()) => {
+                format_outcome(io, &action, dry_run)?;
+                summary.record(&action);
+            }
+            Err(e) => {
+                io.write_str(&format!("  error: {e}\n"))?;
+                summary.record(&Action::Skip);
+            }
+        }
     }
 
     Ok(summary)
@@ -111,6 +183,8 @@ mod tests {
             vec![ScoredCandidate {
                 path: target,
                 score: 3.20,
+                shared_dirs: 0,
+                basename_count: 1,
             }],
         )
     }
@@ -122,7 +196,7 @@ mod tests {
         let expected_target = case.candidates[0].path.clone();
         let mut io = MockIO::new(vec!["1"]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.relinked, 1);
         let resolved = fs::read_link(temp.path().join("my_link")).unwrap();
@@ -136,7 +210,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["s"]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.skipped, 1);
         assert!(temp.path().join("my_link").symlink_metadata().is_ok());
@@ -148,7 +222,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["r", "y"]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.removed, 1);
         assert!(temp.path().join("my_link").symlink_metadata().is_err());
@@ -161,7 +235,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["r", "n", "s"]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.skipped, 1);
         assert!(temp.path().join("my_link").symlink_metadata().is_ok());
@@ -173,7 +247,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["xyz", "s"]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.skipped, 1);
         assert!(io.output().contains("unrecognized input"));
@@ -187,7 +261,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["c", custom_target.to_str().unwrap()]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.relinked, 1);
         let resolved = fs::read_link(temp.path().join("my_link")).unwrap();
@@ -200,7 +274,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["c", "", "s"]);
 
-        let summary = run(&[case], &mut io, false).unwrap();
+        let summary = run(&[case], &mut io, false, false).unwrap();
 
         assert_eq!(summary.skipped, 1);
     }
@@ -211,7 +285,7 @@ mod tests {
         let case = setup_case(&temp);
         let mut io = MockIO::new(vec!["1"]);
 
-        let summary = run(&[case], &mut io, true).unwrap();
+        let summary = run(&[case], &mut io, true, false).unwrap();
 
         assert_eq!(summary.relinked, 1);
         let still_broken = fs::read_link(temp.path().join("my_link")).unwrap();
@@ -233,6 +307,8 @@ mod tests {
             vec![ScoredCandidate {
                 path: t1,
                 score: 1.0,
+                shared_dirs: 0,
+                basename_count: 1,
             }],
         );
 
@@ -242,10 +318,39 @@ mod tests {
 
         let mut io = MockIO::new(vec!["1", "s"]);
 
-        let summary = run(&[case1, case2], &mut io, false).unwrap();
+        let summary = run(&[case1, case2], &mut io, false, false).unwrap();
 
         assert_eq!(summary.relinked, 1);
         assert_eq!(summary.skipped, 1);
         assert_eq!(summary.total(), 2);
+    }
+
+    #[test]
+    fn batch_confirm_decline_no_changes() {
+        let temp = TempDir::new().unwrap();
+        let case = setup_case(&temp);
+        let mut io = MockIO::new(vec!["1", "n"]);
+
+        let summary = run(&[case], &mut io, false, true).unwrap();
+
+        assert_eq!(summary.relinked, 0);
+        assert_eq!(summary.total(), 0);
+        assert!(io.output().contains("Aborted"));
+        let still_broken = fs::read_link(temp.path().join("my_link")).unwrap();
+        assert_eq!(still_broken, PathBuf::from("/nonexistent"));
+    }
+
+    #[test]
+    fn batch_confirm_accept_applies_all() {
+        let temp = TempDir::new().unwrap();
+        let case = setup_case(&temp);
+        let expected_target = case.candidates[0].path.clone();
+        let mut io = MockIO::new(vec!["1", "y"]);
+
+        let summary = run(&[case], &mut io, false, true).unwrap();
+
+        assert_eq!(summary.relinked, 1);
+        let resolved = fs::read_link(temp.path().join("my_link")).unwrap();
+        assert_eq!(resolved, expected_target);
     }
 }

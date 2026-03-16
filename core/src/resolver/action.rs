@@ -40,10 +40,14 @@ mod tests {
                 ScoredCandidate {
                     path: "/first/candidate.txt".into(),
                     score: 1.0,
+                    shared_dirs: 0,
+                    basename_count: 2,
                 },
                 ScoredCandidate {
                     path: "/second/candidate.txt".into(),
                     score: 2.0,
+                    shared_dirs: 0,
+                    basename_count: 2,
                 },
             ],
         )

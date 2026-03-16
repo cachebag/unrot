@@ -5,6 +5,7 @@ pub(crate) mod fs_ops;
 pub(crate) mod input;
 pub mod io;
 pub mod model;
+pub(crate) mod safety;
 pub(crate) mod session;
 
 pub use display::present;
