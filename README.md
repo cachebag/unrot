@@ -3,6 +3,9 @@
 <div align="center">
 
 [![CI](https://github.com/cachebag/unrot/actions/workflows/ci.yml/badge.svg)](https://github.com/cachebag/unrot/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/unrot.svg)](https://crates.io/crates/unrot)
+[![Downloads](https://img.shields.io/crates/d/unrot.svg)](https://crates.io/crates/unrot)
+[![Rust 1.94+](https://img.shields.io/badge/rust-1.94%2B-orange)](https://blog.rust-lang.org/2025/05/15/Rust-1.94.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE-MIT.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE-APACHE.md)
 
@@ -40,6 +43,9 @@ unrot /path/to/project --dry-run
 
 # Add extra directories to skip (on top of .git, node_modules, target, etc.)
 unrot /path/to/project -I vendor -I dist
+
+# Run a command without terminal coloring enabled
+unrot [OPTIONS] [PATH] --no-color
 ```
 
 ### Commands
@@ -71,6 +77,7 @@ When prompted for each broken symlink:
 | `--dry-run` | — | Preview changes without modifying the filesystem |
 | `--batch-confirm` | — | Collect all decisions, show summary, then confirm before applying |
 | `--ignore <NAME>` | `-I` | Additional directory names to skip (repeatable) |
+| `--no-color` | -- | Disables terminal coloring for a given command |  
 
 ## License
 
