@@ -1,3 +1,4 @@
+use owo_colors::{OwoColorize, Stream};
 use std::{
     fmt, fs,
     path::{Path, PathBuf},
@@ -60,7 +61,16 @@ pub struct BrokenSymlink {
 
 impl fmt::Display for BrokenSymlink {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} -> {}", self.link.display(), self.target.display())
+        write!(
+            f,
+            "{} -> {}",
+            self.link
+                .display()
+                .if_supports_color(Stream::Stdout, |v| v.red()),
+            self.target
+                .display()
+                .if_supports_color(Stream::Stdout, |v| v.red())
+        )
     }
 }
 
@@ -231,6 +241,7 @@ mod tests {
 
     #[test]
     fn display_format_is_correct() {
+        owo_colors::set_override(false);
         let bs = BrokenSymlink {
             link: PathBuf::from("/home/user/link"),
             target: PathBuf::from("/home/user/missing"),
