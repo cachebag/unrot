@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use owo_colors::{OwoColorize, Stream};
+use std::{io::IsTerminal, path::PathBuf};
 use unrot_core::{
     BrokenSymlink, DEFAULT_IGNORE, RepairCase, TerminalIO, find_broken_symlinks, find_candidates,
     run,
@@ -7,6 +8,20 @@ use unrot_core::{
 
 fn main() {
     let cli = Cli::parse();
+
+    let no_color = match &cli.subcommand {
+        Some(Sub::Scan(s)) => s.no_color,
+        Some(Sub::Fix(f)) => f.no_color,
+        Some(Sub::List(l)) => l.no_color,
+        None => cli.no_color,
+    };
+
+    // Configure colors: --no-color, NO_COLOR env, or piped stdout => plain
+    if no_color || std::env::var("NO_COLOR").is_ok() || !std::io::stdout().is_terminal() {
+        owo_colors::set_override(false);
+    } else {
+        owo_colors::unset_override();
+    }
 
     let (mode, path, extra_ignore, fix_opts) = match &cli.subcommand {
         Some(Sub::Scan(s)) => (Mode::Scan, resolve_path(&s.path), s.ignore.clone(), None),
@@ -46,15 +61,27 @@ fn main() {
     match mode {
         Mode::List => {
             for link in &broken {
-                println!("{}", link.link.display());
+                println!(
+                    "{}",
+                    link.link
+                        .display()
+                        .if_supports_color(Stream::Stdout, |v| v.red())
+                );
             }
             return;
         }
         Mode::Scan => {
             if broken.is_empty() {
-                println!("no broken symlinks found");
+                println!(
+                    "{}",
+                    "no broken symlinks found".if_supports_color(Stream::Stdout, |v| v.green())
+                );
             } else {
-                println!("found {} broken symlink(s):\n", broken.len());
+                println!(
+                    "{}",
+                    format!("found {} broken symlink(s):\n", broken.len())
+                        .if_supports_color(Stream::Stdout, |v| v.yellow())
+                );
                 for b in &broken {
                     println!("  {b}");
                 }
@@ -89,7 +116,10 @@ fn main() {
             }
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            eprintln!(
+                "{}",
+                format!("error: {e}").if_supports_color(Stream::Stderr, |v| v.red())
+            );
             std::process::exit(1);
         }
     }
@@ -140,6 +170,10 @@ struct Cli {
     /// Collect all decisions, show summary, then confirm before applying
     #[arg(long)]
     batch_confirm: bool,
+
+    /// Disable colored output
+    #[arg(long)]
+    no_color: bool,
 }
 
 #[derive(Subcommand)]
@@ -162,6 +196,10 @@ struct ScanArgs {
     /// Additional directory names to ignore during walks
     #[arg(short = 'I', long)]
     ignore: Vec<String>,
+
+    /// Disable colored output
+    #[arg(long)]
+    no_color: bool,
 }
 
 #[derive(clap::Args)]
@@ -184,6 +222,10 @@ struct FixArgs {
     /// Collect all decisions, show summary, then confirm before applying
     #[arg(long)]
     batch_confirm: bool,
+
+    /// Disable colored output
+    #[arg(long)]
+    no_color: bool,
 }
 
 #[derive(clap::Args)]
@@ -194,6 +236,10 @@ struct ListArgs {
     /// Additional directory names to ignore during walks
     #[arg(short = 'I', long)]
     ignore: Vec<String>,
+
+    /// Disable colored output
+    #[arg(long)]
+    no_color: bool,
 }
 
 #[cfg(test)]
