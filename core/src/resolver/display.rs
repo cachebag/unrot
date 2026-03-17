@@ -1,5 +1,7 @@
 use std::fmt;
 
+use owo_colors::{OwoColorize, Stream};
+
 use super::{
     model::RepairCase,
     safety::{format_warnings, relink_warnings},
@@ -17,7 +19,15 @@ pub fn format_header(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Result 
         ref original_target,
         ..
     } = *case;
-    writeln!(w, "{} -> {}", link.display(), original_target.display())
+    writeln!(
+        w,
+        "{} -> {}",
+        link.display()
+            .if_supports_color(Stream::Stdout, |v| v.red()),
+        original_target
+            .display()
+            .if_supports_color(Stream::Stdout, |v| v.red())
+    )
 }
 
 pub fn format_candidates(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Result {
@@ -27,7 +37,11 @@ pub fn format_candidates(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Res
         ..
     } = *case;
     if candidates.is_empty() {
-        writeln!(w, "  no candidates found")
+        writeln!(
+            w,
+            "  {}",
+            "no candidates found".if_supports_color(Stream::Stdout, |v| v.yellow())
+        )
     } else {
         let target_basename = original_target
             .file_name()
@@ -45,15 +59,24 @@ pub fn format_candidates(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Res
             writeln!(
                 w,
                 "  [{}] {} (score: {:.2}, {} shared dirs, {})",
-                i + 1,
-                candidate.path.display(),
+                (i + 1)
+                    .to_string()
+                    .if_supports_color(Stream::Stdout, |v| v.cyan()),
+                candidate
+                    .path
+                    .display()
+                    .if_supports_color(Stream::Stdout, |v| v.green()),
                 candidate.score,
                 candidate.shared_dirs,
                 basename_note
             )?;
             let warnings = relink_warnings(&case.link, original_target, &candidate.path);
             if !warnings.is_empty() {
-                write!(w, "{}", format_warnings(&warnings))?;
+                write!(
+                    w,
+                    "{}",
+                    format_warnings(&warnings).if_supports_color(Stream::Stdout, |v| v.yellow())
+                )?;
             }
         }
         Ok(())
@@ -62,22 +85,31 @@ pub fn format_candidates(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Res
 
 pub fn format_actions(w: &mut impl fmt::Write, case: &RepairCase) -> fmt::Result {
     let RepairCase { ref candidates, .. } = *case;
-    if candidates.is_empty() {
-        writeln!(w, "  [c] custom path  [s] skip  [r] remove")
+    let actions = if candidates.is_empty() {
+        "[c] custom path  [s] skip  [r] remove".to_string()
     } else {
         let n = candidates.len();
         if n == 1 {
-            writeln!(w, "  [1] select  [c] custom path  [s] skip  [r] remove")
+            "[1] select  [c] custom path  [s] skip  [r] remove".to_string()
         } else {
-            writeln!(w, "  [1-{n}] select  [c] custom path  [s] skip  [r] remove")
+            format!("[1-{n}] select  [c] custom path  [s] skip  [r] remove")
         }
-    }
+    };
+    writeln!(
+        w,
+        "  {}",
+        actions.if_supports_color(Stream::Stdout, |v| v.cyan())
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::fuzzy::ScoredCandidate;
+
+    fn disable_colors() {
+        owo_colors::set_override(false);
+    }
 
     fn case_with_candidates() -> RepairCase {
         RepairCase::new(
@@ -119,6 +151,7 @@ mod tests {
 
     #[test]
     fn header_shows_link_and_target() {
+        disable_colors();
         let mut out = String::new();
         format_header(&mut out, &case_with_candidates()).unwrap();
         assert_eq!(out, "/home/user/link -> /old/target.txt\n");
@@ -126,6 +159,7 @@ mod tests {
 
     #[test]
     fn candidates_listed_with_scores() {
+        disable_colors();
         let mut out = String::new();
         format_candidates(&mut out, &case_with_candidates()).unwrap();
         assert!(out.contains("[1] /home/user/target.txt (score: 3.20"));
@@ -136,6 +170,7 @@ mod tests {
 
     #[test]
     fn no_candidates_message() {
+        disable_colors();
         let mut out = String::new();
         format_candidates(&mut out, &case_without_candidates()).unwrap();
         assert_eq!(out, "  no candidates found\n");
@@ -143,6 +178,7 @@ mod tests {
 
     #[test]
     fn actions_with_multiple_candidates() {
+        disable_colors();
         let mut out = String::new();
         format_actions(&mut out, &case_with_candidates()).unwrap();
         assert!(out.contains("[1-2] select"));
@@ -153,6 +189,7 @@ mod tests {
 
     #[test]
     fn actions_with_single_candidate() {
+        disable_colors();
         let mut out = String::new();
         format_actions(&mut out, &case_single_candidate()).unwrap();
         assert!(out.contains("[1] select"));
@@ -161,6 +198,7 @@ mod tests {
 
     #[test]
     fn actions_without_candidates() {
+        disable_colors();
         let mut out = String::new();
         format_actions(&mut out, &case_without_candidates()).unwrap();
         assert!(!out.contains("select"));
@@ -171,6 +209,7 @@ mod tests {
 
     #[test]
     fn present_combines_all_sections() {
+        disable_colors();
         let mut out = String::new();
         present(&mut out, &case_with_candidates()).unwrap();
 

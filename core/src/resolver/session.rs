@@ -1,3 +1,4 @@
+use owo_colors::{OwoColorize, Stream};
 use std::io;
 
 use super::{
@@ -44,7 +45,10 @@ fn run_immediate(
                 summary.record(&action);
             }
             Err(e) => {
-                io.write_str(&format!("  error: {e}\n"))?;
+                io.write_str(&format!(
+                    "  {}\n",
+                    format!("error: {e}").if_supports_color(Stream::Stdout, |v| v.red())
+                ))?;
                 summary.record(&Action::Skip);
             }
         }
@@ -100,7 +104,10 @@ fn run_batch(cases: &[RepairCase], io: &mut impl ResolverIO, dry_run: bool) -> i
                 summary.record(&action);
             }
             Err(e) => {
-                io.write_str(&format!("  error: {e}\n"))?;
+                io.write_str(&format!(
+                    "  {}\n",
+                    format!("error: {e}").if_supports_color(Stream::Stdout, |v| v.red())
+                ))?;
                 summary.record(&Action::Skip);
             }
         }
@@ -152,14 +159,23 @@ fn prompt_until_resolved(case: &RepairCase, io: &mut impl ResolverIO) -> io::Res
 fn format_outcome(io: &mut impl ResolverIO, action: &Action, dry_run: bool) -> io::Result<()> {
     match (action, dry_run) {
         (Action::Relink(target), true) => io.write_str(&format!(
-            "  [dry run] would relink -> {}\n",
+            "  {} -> {}\n",
+            "[dry run] would relink".if_supports_color(Stream::Stdout, |v| v.cyan()),
             target.display()
         )),
-        (Action::Remove, true) => io.write_str("  [dry run] would remove\n"),
-        (Action::Relink(target), false) => {
-            io.write_str(&format!("  relinked -> {}\n", target.display()))
-        }
-        (Action::Remove, false) => io.write_str("  removed\n"),
+        (Action::Remove, true) => io.write_str(&format!(
+            "  {}\n",
+            "[dry run] would remove".if_supports_color(Stream::Stdout, |v| v.cyan())
+        )),
+        (Action::Relink(target), false) => io.write_str(&format!(
+            "  {} -> {}\n",
+            "relinked".if_supports_color(Stream::Stdout, |v| v.green()),
+            target.display()
+        )),
+        (Action::Remove, false) => io.write_str(&format!(
+            "  {}\n",
+            "removed".if_supports_color(Stream::Stdout, |v| v.yellow())
+        )),
         (Action::Skip, _) => Ok(()),
     }
 }
