@@ -8,25 +8,25 @@ use unrot_core::{
 fn main() {
     let cli = Cli::parse();
 
-    let (mode, path, fix_opts) = match &cli.subcommand {
-        Some(Sub::Scan(s)) => (Mode::Scan, resolve_path(&s.path), None),
+    let (mode, path, extra_ignore, fix_opts) = match &cli.subcommand {
+        Some(Sub::Scan(s)) => (Mode::Scan, resolve_path(&s.path), s.ignore.clone(), None),
         Some(Sub::Fix(f)) => (
             Mode::Fix,
             resolve_path(&f.path),
+            f.ignore.clone(),
             Some(FixOptions {
                 search_root: f.search_root.clone(),
-                ignore: f.ignore.clone(),
                 dry_run: f.dry_run,
                 batch_confirm: f.batch_confirm,
             }),
         ),
-        Some(Sub::List(l)) => (Mode::List, resolve_path(&l.path), None),
+        Some(Sub::List(l)) => (Mode::List, resolve_path(&l.path), l.ignore.clone(), None),
         None => (
             Mode::Fix,
             resolve_path(&cli.path),
+            cli.ignore.clone(),
             Some(FixOptions {
                 search_root: cli.search_root.clone(),
-                ignore: cli.ignore.clone(),
                 dry_run: cli.dry_run,
                 batch_confirm: cli.batch_confirm,
             }),
@@ -39,9 +39,7 @@ fn main() {
         .unwrap_or_else(|| path.clone());
 
     let mut all_ignore: Vec<String> = DEFAULT_IGNORE.iter().map(|s| s.to_string()).collect();
-    if let Some(opts) = &fix_opts {
-        all_ignore.extend(opts.ignore.iter().cloned());
-    }
+    all_ignore.extend(extra_ignore);
 
     let broken = find_broken_symlinks(&path, &all_ignore);
 
@@ -53,8 +51,13 @@ fn main() {
             return;
         }
         Mode::Scan => {
-            for b in &broken {
-                println!("{b}");
+            if broken.is_empty() {
+                println!("no broken symlinks found");
+            } else {
+                println!("found {} broken symlink(s):\n", broken.len());
+                for b in &broken {
+                    println!("  {b}");
+                }
             }
             return;
         }
@@ -108,7 +111,6 @@ enum Mode {
 
 struct FixOptions {
     search_root: Option<PathBuf>,
-    ignore: Vec<String>,
     dry_run: bool,
     batch_confirm: bool,
 }
@@ -156,6 +158,10 @@ enum Sub {
 struct ScanArgs {
     #[arg(default_value = ".")]
     path: PathBuf,
+
+    /// Additional directory names to ignore during walks
+    #[arg(short = 'I', long)]
+    ignore: Vec<String>,
 }
 
 #[derive(clap::Args)]
@@ -184,6 +190,10 @@ struct FixArgs {
 struct ListArgs {
     #[arg(default_value = ".")]
     path: PathBuf,
+
+    /// Additional directory names to ignore during walks
+    #[arg(short = 'I', long)]
+    ignore: Vec<String>,
 }
 
 #[cfg(test)]
@@ -291,5 +301,23 @@ mod tests {
         let cli = parse(&["/tmp", "-I", ".git"]).unwrap();
         assert!(cli.subcommand.is_none());
         assert_eq!(cli.ignore, vec![".git"]);
+    }
+
+    #[test]
+    fn unrot_scan_ignore() {
+        let cli = parse(&["scan", "/tmp", "-I", "node_modules"]).unwrap();
+        match &cli.subcommand {
+            Some(Sub::Scan(s)) => assert_eq!(s.ignore, vec!["node_modules"]),
+            _ => panic!("expected Scan subcommand"),
+        }
+    }
+
+    #[test]
+    fn unrot_list_ignore() {
+        let cli = parse(&["list", "/tmp", "-I", ".git"]).unwrap();
+        match &cli.subcommand {
+            Some(Sub::List(l)) => assert_eq!(l.ignore, vec![".git"]),
+            _ => panic!("expected List subcommand"),
+        }
     }
 }
