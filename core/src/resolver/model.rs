@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::{fmt, path::PathBuf};
 
 use crate::fuzzy::ScoredCandidate;
@@ -40,6 +41,7 @@ impl fmt::Display for Summary {
     }
 }
 
+#[derive(Serialize)]
 pub struct RepairCase {
     pub link: PathBuf,
     pub original_target: PathBuf,

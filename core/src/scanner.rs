@@ -1,4 +1,5 @@
 use owo_colors::{OwoColorize, Stream};
+use serde::Serialize;
 use std::{
     fmt, fs,
     path::{Path, PathBuf},
@@ -54,6 +55,7 @@ pub fn find_broken_symlinks(path: &Path, ignore: &[String]) -> Vec<BrokenSymlink
     broken_symlinks
 }
 
+#[derive(Serialize)]
 pub struct BrokenSymlink {
     pub link: PathBuf,
     pub target: PathBuf,

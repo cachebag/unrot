@@ -15,6 +15,7 @@ categories = ["command-line-utilities", "filesystem"]
 [dependencies]
 walkdir = "2.5.0"
 owo-colors.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
