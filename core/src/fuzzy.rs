@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -151,7 +152,7 @@ pub fn find_candidates(
     candidates
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ScoredCandidate {
     pub path: PathBuf,
     pub score: f64,
