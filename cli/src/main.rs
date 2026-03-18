@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use owo_colors::{OwoColorize, Stream};
 use std::{io::IsTerminal, path::PathBuf};
 use unrot_core::{
@@ -16,8 +16,18 @@ fn main() {
         None => cli.no_color,
     };
 
-    // Configure colors: --no-color, NO_COLOR env, or piped stdout => plain
-    if no_color || std::env::var("NO_COLOR").is_ok() || !std::io::stdout().is_terminal() {
+    let format = match &cli.subcommand {
+        Some(Sub::Scan(s)) => s.format.unwrap_or(OutputFormat::Human),
+        Some(Sub::Fix(_)) => OutputFormat::Human,
+        Some(Sub::List(l)) => l.format.unwrap_or(OutputFormat::Human),
+        None => cli.format.unwrap_or(OutputFormat::Human),
+    };
+
+    let is_json = format == OutputFormat::Json;
+
+    // JSON implies no color; also --no-color, NO_COLOR env, or piped stdout => plain
+    if is_json || no_color || std::env::var("NO_COLOR").is_ok() || !std::io::stdout().is_terminal()
+    {
         owo_colors::set_override(false);
     } else {
         owo_colors::unset_override();
@@ -60,18 +70,28 @@ fn main() {
 
     match mode {
         Mode::List => {
-            for link in &broken {
-                println!(
-                    "{}",
-                    link.link
-                        .display()
-                        .if_supports_color(Stream::Stdout, |v| v.red())
-                );
+            if is_json {
+                let paths: Vec<&std::path::Path> =
+                    broken.iter().map(|b| b.link.as_path()).collect();
+                let wrapper = serde_json::json!({ "broken_symlinks": paths });
+                println!("{}", serde_json::to_string_pretty(&wrapper).unwrap());
+            } else {
+                for link in &broken {
+                    println!(
+                        "{}",
+                        link.link
+                            .display()
+                            .if_supports_color(Stream::Stdout, |v| v.red())
+                    );
+                }
             }
             return;
         }
         Mode::Scan => {
-            if broken.is_empty() {
+            if is_json {
+                let wrapper = serde_json::json!({ "broken_symlinks": &broken });
+                println!("{}", serde_json::to_string_pretty(&wrapper).unwrap());
+            } else if broken.is_empty() {
                 println!(
                     "{}",
                     "no broken symlinks found".if_supports_color(Stream::Stdout, |v| v.green())
@@ -88,7 +108,12 @@ fn main() {
             }
             return;
         }
-        Mode::Fix => {}
+        Mode::Fix => {
+            if is_json {
+                eprintln!("--format json is not supported in fix mode");
+                std::process::exit(1);
+            }
+        }
     }
 
     let cases: Vec<RepairCase> = broken
@@ -133,6 +158,12 @@ fn resolve_path(path: &std::path::Path) -> PathBuf {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum OutputFormat {
+    Human,
+    Json,
+}
+
 enum Mode {
     Scan,
     Fix,
@@ -174,6 +205,10 @@ struct Cli {
     /// Disable colored output
     #[arg(long)]
     no_color: bool,
+
+    /// Output format (json only valid for scan/list)
+    #[arg(long, value_enum)]
+    format: Option<OutputFormat>,
 }
 
 #[derive(Subcommand)]
@@ -200,6 +235,10 @@ struct ScanArgs {
     /// Disable colored output
     #[arg(long)]
     no_color: bool,
+
+    /// Output format
+    #[arg(long, value_enum)]
+    format: Option<OutputFormat>,
 }
 
 #[derive(clap::Args)]
@@ -240,6 +279,10 @@ struct ListArgs {
     /// Disable colored output
     #[arg(long)]
     no_color: bool,
+
+    /// Output format
+    #[arg(long, value_enum)]
+    format: Option<OutputFormat>,
 }
 
 #[cfg(test)]
@@ -365,5 +408,52 @@ mod tests {
             Some(Sub::List(l)) => assert_eq!(l.ignore, vec![".git"]),
             _ => panic!("expected List subcommand"),
         }
+    }
+
+    #[test]
+    fn unrot_scan_format_json() {
+        let cli = parse(&["scan", "/tmp", "--format", "json"]).unwrap();
+        match &cli.subcommand {
+            Some(Sub::Scan(s)) => assert_eq!(s.format, Some(OutputFormat::Json)),
+            _ => panic!("expected Scan subcommand"),
+        }
+    }
+
+    #[test]
+    fn unrot_scan_format_human() {
+        let cli = parse(&["scan", "/tmp", "--format", "human"]).unwrap();
+        match &cli.subcommand {
+            Some(Sub::Scan(s)) => assert_eq!(s.format, Some(OutputFormat::Human)),
+            _ => panic!("expected Scan subcommand"),
+        }
+    }
+
+    #[test]
+    fn unrot_scan_format_default_is_none() {
+        let cli = parse(&["scan", "/tmp"]).unwrap();
+        match &cli.subcommand {
+            Some(Sub::Scan(s)) => assert_eq!(s.format, None),
+            _ => panic!("expected Scan subcommand"),
+        }
+    }
+
+    #[test]
+    fn unrot_list_format_json() {
+        let cli = parse(&["list", "/tmp", "--format", "json"]).unwrap();
+        match &cli.subcommand {
+            Some(Sub::List(l)) => assert_eq!(l.format, Some(OutputFormat::Json)),
+            _ => panic!("expected List subcommand"),
+        }
+    }
+
+    #[test]
+    fn unrot_default_format_json() {
+        let cli = parse(&["--format", "json"]).unwrap();
+        assert_eq!(cli.format, Some(OutputFormat::Json));
+    }
+
+    #[test]
+    fn unrot_format_invalid_rejected() {
+        assert!(parse(&["scan", "--format", "xml"]).is_err());
     }
 }
